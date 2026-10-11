@@ -1,0 +1,41 @@
+Step 1: Scale & Requirements (clarify before designing)
+In an LLD interview, you first pin down scope — interviewers want to see you ask questions, not jump to code.
+Functional requirements:
+
+Rider can request a ride (pickup, drop, vehicle type)
+System matches nearest available driver
+Fare estimation (base + distance + time + surge)
+Trip lifecycle: requested → matched → driver arrived → ongoing → completed/cancelled
+Cancellation by rider or driver
+Handle "no drivers available"
+
+Non-functional requirements (this is what separates 6 YOE from junior):
+
+Thread-safety — multiple riders requesting rides concurrently, multiple drivers updating location
+Extensibility — pricing and matching logic should be swappable (strategy pattern)
+Consistency — a driver can't be double-booked (race condition handling)
+In-memory only, but designed so a DB layer could slot in later (repository pattern)
+
+Out of scope (say this explicitly in interviews): 
+    payments, 
+    real GPS streaming, 
+    notifications, 
+    ratings system — mention them as "separate services" to show system design awareness.
+
+
+
+Step 3: Discussion Points (say these out loud in interview)
+
+Driver matching at scale: linear scan over all drivers is O(n) — fine for demo, but real systems use geohashing/quadtrees to query nearby drivers in O(log n).
+Race conditions: two riders requesting the same driver simultaneously → need locking (or atomic compare-and-swap in DB) so a driver isn't double-assigned.
+State machine enforcement: trip status transitions must be validated — you can't start_trip before driver_arrived. This prevents invalid API call sequences from corrupting state.
+Surge pricing: triggered by demand/supply ratio in a zone — here it's a manual multiplier, but mention it could be computed from a separate analytics service.
+Idempotency: request_ride should ideally take an idempotency key so retries don't create duplicate trips.
+
+
+
+
+92a09a08 -> rider1
+b5767b9a -> driver1
+e5e47a9b -> carl
+

@@ -1,0 +1,48 @@
+Rule of Thumb (Very Important)
+"Favor Composition over Inheritance"
+Use Inheritance when:
+
+Clear "Is-A" relationship (e.g., Square is a Rectangle)
+You need polymorphism with abstract base classes
+
+Use Composition when:
+
+You want flexibility
+Classes are not truly related by type
+You want to change behavior at runtime
+
+
+
+Letter, Principle,Meaning (Simple),         One Line Example
+S,      Single Responsibility,              One class should do only one job,User class should not send emails
+O,      Open/Closed,"Open for extension,    Closed for modification",Use Strategy Pattern
+L,      Liskov Substitution,                Child class should be replaceable by parent,Square should not inherit Rectangle
+I,      Interface Segregation,              Many small interfaces > one big interface,Don't force class to implement unused methods
+D,      Dependency Inversion,               "Depend on abstractions, not concrete classes",We already studied this
+
+
+
+How to run & test
+bashpip install fastapi uvicorn
+uvicorn api:app --reload
+Open http://127.0.0.1:8000/docs — Swagger UI lets you call every endpoint interactively. Suggested test sequence:
+
+POST /riders → get rider_id
+POST /drivers (register 1-2 drivers near pickup coords, e.g. lat=12.9352, lng=77.6245)
+POST /rides → get trip_id, check status: MATCHED, fare
+POST /rides/{trip_id}/driver-arrived
+POST /rides/{trip_id}/start
+POST /rides/{trip_id}/end
+GET /rides/{trip_id} → check full event log
+Try /start before /driver-arrived on a new trip → expect 400
+POST /admin/surge with {"multiplier": 2.0}, then request a new ride → compare fare
+
+This gives you a fully runnable, in-memory Uber LLD with a real HTTP interface for testing.
+
+
+BookMyShow / movie ticket booking
+Logger framework
+Text editor with undo/redo
+Task scheduler / cron
+Pub-Sub / message queue:
+Stock exchange / order matching
