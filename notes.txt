@@ -40,9 +40,11 @@ POST /admin/surge with {"multiplier": 2.0}, then request a new ride → compare 
 This gives you a fully runnable, in-memory Uber LLD with a real HTTP interface for testing.
 
 
-BookMyShow / movie ticket booking
-Logger framework
-Text editor with undo/redo
-Task scheduler / cron
-Pub-Sub / message queue:
-Stock exchange / order matching
+Logger framework: design patterns warm-up
+Task scheduler / cron: threads, priority queue, delayed execution
+BookMyShow: concurrency, seat locking, booking state
+Text editor with undo/redo: Command pattern, Memento
+Pub-Sub / message queue: Observer at scale, producer/consumer
+Uber: matching strategy, location, trip state machine (a big one, so save it for after BookMyShow)
+Stock exchange / order matching: heaps, matching engine, concurrency under load
+Distributed caching: this is more HLD than LLD, so do it last, after LRU feels easy
