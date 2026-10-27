@@ -18,10 +18,10 @@ class Task:
 class Scheduler:
     def __init__(self):
         self.tasks: Dict[str, Task] = {}      # task_id -> Task
+        self.running = False
         self.heap = []                        # (run_at, seq, task_id)
         self.counter: int = 0                 # tie-breaker for the heap
         self.cond = threading.Condition()     # lock + wait/notify in one
-        self.running = False
         self.thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
