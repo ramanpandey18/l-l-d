@@ -8,7 +8,7 @@ class Direction(Enum):
     DOWN = "DOWN"
 
 
-class ElevatorState(Enum):
+class State(Enum):
     IDLE = "IDLE"
     MOVING_UP = "MOVING_UP"
     MOVING_DOWN = "MOVING_DOWN"
@@ -29,7 +29,7 @@ class Elevator:
         self.min_floor = min_floor
         self.max_floor = max_floor
         self.current_floor = current_floor
-        self.state: ElevatorState = ElevatorState.IDLE
+        self.state: State = State.IDLE
 
         # min-heap: pending floors ABOVE current position, closest first
         self.up_stops: List[int] = []
@@ -48,17 +48,15 @@ class Elevator:
             heapq.heappush(self.down_stops, (-request.floor, request))
 
     def step(self) -> None:
-        if self.state == ElevatorState.IDLE:
+        if self.state == State.IDLE:
             if self.up_stops:
-                self.state = ElevatorState.MOVING_UP
+                self.state = State.MOVING_UP
             elif self.down_stops:
-                self.state = ElevatorState.MOVING_DOWN
+                self.state = State.MOVING_DOWN
             else:
                 return
-
-        if self.state == ElevatorState.MOVING_UP:
+        if self.state == State.MOVING_UP:
             self.current_floor += 1
-
             while self.up_stops and self.up_stops[0][0] <= self.current_floor:
                 floor, request = heapq.heappop(self.up_stops)
                 is_match = floor == self.current_floor and (
@@ -67,16 +65,13 @@ class Elevator:
                 if not is_match:
                     # already passed this floor, or wrong direction - reschedule for the down run
                     heapq.heappush(self.down_stops, (-floor, request))
-
             if not self.up_stops:
                 if self.down_stops:
-                    self.state = ElevatorState.MOVING_DOWN
+                    self.state = State.MOVING_DOWN
                 else:
-                    self.state = ElevatorState.IDLE
-
-        elif self.state == ElevatorState.MOVING_DOWN:
+                    self.state = State.IDLE
+        elif self.state == State.MOVING_DOWN:
             self.current_floor -= 1
-
             while self.down_stops and -self.down_stops[0][0] >= self.current_floor:
                 neg_floor, request = heapq.heappop(self.down_stops)
                 floor = -neg_floor
@@ -85,12 +80,11 @@ class Elevator:
                 )
                 if not is_match:
                     heapq.heappush(self.up_stops, (floor, request))
-
             if not self.down_stops:
                 if self.up_stops:
-                    self.state = ElevatorState.MOVING_UP
+                    self.state = State.MOVING_UP
                 else:
-                    self.state = ElevatorState.IDLE
+                    self.state = State.IDLE
 
 class ElevatorController:
     """Owns one or more elevators and routes incoming requests to them.
