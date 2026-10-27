@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Callable, Union, Any
 from datetime import datetime
 import threading
 
@@ -13,11 +13,14 @@ class LogLevel:
     NAMES = {1: "DEBUG", 2: "INFO", 3: "WARN", 4: "ERROR", 5: "FATAL"}
 
     @staticmethod
-    def is_valid(level) -> bool:
+    def is_valid(level: Any) -> bool:
+        # bool is a subclass of int, so explicitly reject True and False.
         return isinstance(level, int) and not isinstance(level, bool) and level in LogLevel.NAMES
 
     @staticmethod
     def name_of(level: int) -> str:
+        if not LogLevel.is_valid(level):
+            raise ValueError("invalid log level.")
         return LogLevel.NAMES[level]
 
 
@@ -40,8 +43,10 @@ class LogFormatter:
 class DefaultFormatter(LogFormatter):
     def format(self, msg: LogMessage) -> str:
         time_str = msg.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        return (f"{time_str} [{LogLevel.name_of(msg.level)}] "
-                f"{msg.logger_name} ({msg.thread_name}) - {msg.message}")
+        return (
+            f"{time_str} [{LogLevel.name_of(msg.level)}] "
+            f"{msg.logger_name} ({msg.thread_name}) - {msg.message}"
+        )
 
 
 class SimpleFormatter(LogFormatter):
@@ -49,7 +54,7 @@ class SimpleFormatter(LogFormatter):
         return f"{LogLevel.name_of(msg.level)}: {msg.message}"
 
 
-# ---------- Appenders (Template Method) ----------
+# ---------- Appenders (Template Method style) ----------
 
 class LogAppender:
     def __init__(self, threshold: int, formatter: LogFormatter):
@@ -61,7 +66,7 @@ class LogAppender:
         self.formatter = formatter
 
     def append(self, msg: LogMessage) -> None:
-        # template method: filtering lives here, subclasses only write
+        # Common workflow: filter, format, then delegate destination-specific writing.
         if msg.level >= self.threshold:
             self._write(self.formatter.format(msg))
 
@@ -81,15 +86,27 @@ class FileAppender(LogAppender):
         super().__init__(threshold, formatter)
         self.file = open(path, "a", encoding="utf-8")
         self.lock = threading.Lock()
+        self._closed = False
 
     def _write(self, formatted: str) -> None:
-        with self.lock:                      # protects the shared file handle
+        with self.lock:
+            if self._closed:
+                raise ValueError("I/O operation on closed log file.")
             self.file.write(formatted + "\n")
             self.file.flush()
 
     def close(self) -> None:
         with self.lock:
-            self.file.close()
+            if not self._closed:
+                self.file.close()
+                self._closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+        return False
 
 
 class MemoryAppender(LogAppender):
@@ -107,8 +124,16 @@ class MemoryAppender(LogAppender):
 
 # ---------- Logger ----------
 
+Message = Union[str, Callable[[], Any], Any]
+
+
 class Logger:
     def __init__(self, name: str, level: int = LogLevel.INFO):
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("logger name is empty or invalid.")
+        if not LogLevel.is_valid(level):
+            raise ValueError("invalid log level.")
+
         self.name = name
         self.level = level
         self.appenders: List[LogAppender] = []
@@ -117,13 +142,14 @@ class Logger:
     def set_level(self, level: int) -> None:
         if not LogLevel.is_valid(level):
             raise ValueError("invalid log level.")
-        self.level = level
+        with self.lock:
+            self.level = level
 
     def add_appender(self, appender: LogAppender) -> None:
         if not isinstance(appender, LogAppender):
             raise TypeError("Expected a LogAppender instance")
         with self.lock:
-            # copy-on-write: build a new list, readers keep using the old one
+            # Copy-on-write: readers can safely retain an earlier list snapshot.
             self.appenders = self.appenders + [appender]
 
     def remove_appender(self, appender: LogAppender) -> bool:
@@ -137,17 +163,25 @@ class Logger:
         if not LogLevel.is_valid(level):
             raise ValueError("invalid log level.")
 
-        if level < self.level:               # cheap early exit, nothing is built
+        # Take a consistent snapshot of the threshold and appenders. Do not hold
+        # the lock while evaluating a lazy message or writing to destinations.
+        with self.lock:
+            logger_level = self.level
+            appenders_snapshot = self.appenders
+
+        if level < logger_level:
             return
 
-        if callable(message):                # lazy message, only built when enabled
+        if callable(message):
             message = message()
+
         msg = LogMessage(level, self.name, str(message))
 
-        for appender in self.appenders:      # iterates a snapshot, no lock needed
+        for appender in appenders_snapshot:
             try:
                 appender.append(msg)
-            except Exception as e:           # one bad appender must not stop others
+            except Exception as e:
+                # A failing appender must not prevent other appenders from running.
                 print(f"Appender {type(appender).__name__} failed: {e}")
 
     def debug(self, message) -> None:
@@ -180,13 +214,14 @@ class LoggerManager:
     def get_instance(cls) -> "LoggerManager":
         if cls._instance is None:
             with cls._instance_lock:
-                if cls._instance is None:    # double-checked locking
-                    cls._instance = LoggerManager()
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     @classmethod
     def reset(cls) -> None:
-        # drops the singleton, mainly so tests start clean
+        # Intended mainly for tests. Existing references to the old manager/loggers
+        # remain valid; this only clears the class-level singleton reference.
         with cls._instance_lock:
             cls._instance = None
 
